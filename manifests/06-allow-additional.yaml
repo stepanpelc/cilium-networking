@@ -1,0 +1,20 @@
+---
+apiVersion: cilium.io/v2
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: allow-app-c-producer-to-consumers
+specs:
+  - endpointSelector:
+      matchLabels:
+        "k8s:io.kubernetes.pod.namespace": "app-a-consumer"
+    ingress:
+      - fromEndpoints:
+          - matchLabels:
+              "k8s:io.kubernetes.pod.namespace": "app-c-producer"
+  - endpointSelector:
+      matchLabels:
+        "k8s:io.kubernetes.pod.namespace": "app-b-consumer"
+    ingress:
+      - fromEndpoints:
+          - matchLabels:
+              "k8s:io.kubernetes.pod.namespace": "app-c-producer"

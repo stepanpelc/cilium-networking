@@ -1,0 +1,165 @@
+apiVersion: "cilium.io/v2"
+kind: CiliumClusterwideNetworkPolicy
+metadata:
+  name: deny-non-system-namespaces
+spec:
+  endpointSelector: {}
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": "kube-system"
+        - matchLabels:
+            "k8s:io.kubernetes.pod.namespace": "local-path-storage"
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: cilium-default-deny
+  namespace: cilium
+spec:
+  endpointSelector: {}
+  ingress: []
+  egress: []
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-dns-to-coredns
+  namespace: cilium
+spec:
+  endpointSelector: {}
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: kube-system
+        k8s:k8s-app: kube-dns
+    toPorts:
+    - ports:
+      - port: "53"
+        protocol: UDP
+      - port: "53"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-egress-to-kube-apiserver
+  namespace: cilium
+spec:
+  endpointSelector: {}
+  egress:
+  - toEntities:
+    - kube-apiserver
+    toPorts:
+    - ports:
+      - port: "443"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-hubble-relay-to-hubble
+  namespace: cilium
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:k8s-app: hubble-relay
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: cilium
+        k8s:k8s-app: cilium
+    toPorts:
+    - ports:
+      - port: "4244"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-hubble-ui-to-relay
+  namespace: cilium
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:k8s-app: hubble-ui
+  egress:
+  - toEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: cilium
+        k8s:k8s-app: hubble-relay
+    toPorts:
+    - ports:
+      - port: "4245"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-to-clustermesh-apiserver
+  namespace: cilium
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:k8s-app: clustermesh-apiserver
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: cilium
+        k8s:k8s-app: kvstoremesh
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: cilium
+        k8s:k8s-app: cilium
+    toPorts:
+    - ports:
+      - port: "2379"
+        protocol: TCP
+      - port: "2380"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-clustermesh-apiserver-from-remote-nodes
+  namespace: cilium
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:k8s-app: clustermesh-apiserver
+  ingress:
+  - fromEntities:
+    - remote-node
+    toPorts:
+    - ports:
+      - port: "2379"
+        protocol: TCP
+      - port: "2380"
+        protocol: TCP
+---
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: cilium
+spec:
+  endpointSelector:
+    matchExpressions:
+    - key: k8s:k8s-app
+      operator: In
+      values:
+      - cilium
+      - cilium-operator
+      - hubble-relay
+  ingress:
+  - fromEndpoints:
+    - matchLabels:
+        k8s:io.kubernetes.pod.namespace: monitoring
+        k8s:app.kubernetes.io/name: prometheus
+    toPorts:
+    - ports:
+      - port: "9962"
+        protocol: TCP
+      - port: "9963"
+        protocol: TCP
+      - port: "9965"
+        protocol: TCP

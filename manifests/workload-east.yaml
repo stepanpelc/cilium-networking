@@ -1,0 +1,117 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app-a-consumer
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app-a-consumer
+  namespace: app-a-consumer
+  labels:
+    app: app-a-consumer
+  annotations:
+    io.cilium/global-service: "true"
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: app-a-producer
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-httpbin-script
+  namespace: app-a-producer
+data:
+  script.js: |
+    import http from "k6/http";
+    import { sleep } from "k6";
+
+    export const options = {
+      vus: __ENV.VUS ? parseInt(__ENV.VUS) : 5,
+      duration: __ENV.DURATION || "24h",
+      thresholds: { http_req_failed: ["rate<0.10"] },
+    };
+
+    const BASE = __ENV.BASE_URL;
+    const endpoints = [
+      "/get","/anything","/headers","/uuid","/ip","/user-agent","/cookies",
+      "/delay/1","/delay/2","/delay/3",
+      "/status/200","/status/204","/status/301","/status/404","/status/418","/status/500"
+    ];
+    const methods = ["GET","POST","PUT","PATCH","DELETE"];
+    function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+
+    export default function () {
+      const m = pick(methods);
+      let ep = pick(endpoints);
+      if (m === "POST") ep = "/post";
+      if (m === "PUT") ep = "/put";
+      if (m === "PATCH") ep = "/patch";
+      if (m === "DELETE") ep = "/delete";
+
+      const url = `${BASE}${ep}`;
+      const params = { headers: { "Content-Type": "application/json", "X-Demo": "k6-producer" } };
+
+      if (m === "GET" || m === "DELETE") {
+        http.request(m, url, null, params);
+      } else {
+        const payload = JSON.stringify({ ts: Date.now(), note: "random load", rnd: Math.random() });
+        http.request(m, url, payload, params);
+      }
+      sleep(Math.random()*1.5 + 0.2);
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app-a-producer
+  namespace: app-a-producer
+  labels:
+    app: app-a-producer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: app-a-producer
+  template:
+    metadata:
+      labels:
+        app: app-a-producer
+    spec:
+      containers:
+        - name: k6
+          image: grafana/k6:0.49.0
+          imagePullPolicy: IfNotPresent
+          args: ["run","/scripts/script.js"]
+          env:
+            - name: BASE_URL
+              value: http://app-a-consumer.app-a-consumer.svc.cluster.local
+            - name: VUS
+              value: "5"
+            - name: DURATION
+              value: 24h
+          volumeMounts:
+            - name: k6-scripts
+              mountPath: /scripts
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 300m
+              memory: 256Mi
+      volumes:
+        - name: k6-scripts
+          configMap:
+            name: k6-httpbin-script
+            items:
+              - key: script.js
+                path: script.js

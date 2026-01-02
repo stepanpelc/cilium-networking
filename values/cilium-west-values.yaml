@@ -1,0 +1,45 @@
+cluster:
+  id: 1
+  name: west
+
+k8sServicePort: 6443
+
+namespaceOverride: cilium
+
+kubeProxyReplacement: true
+# tunnel: vxlan
+bpf:
+  masquerade: true
+
+ipam:
+  mode: kubernetes
+identityAllocationMode: crd
+policyEnforcementMode: default
+
+gatewayAPI:
+  enabled: true
+
+hubble:
+  enabled: true
+  metrics:
+    enabled:
+      - dns:query;ignoreAAAA
+      - drop
+      - tcp
+      - flow
+  relay:
+    enabled: true
+    service:
+      type: ClusterIP
+  ui:
+    enabled: true
+
+clustermesh:
+  enabled: true
+  useAPIServer: true
+  apiserver:
+    service:
+      type: NodePort
+    tls:
+      auto:
+        enabled: true
